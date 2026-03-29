@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, Mail, Lock, Phone, Calendar, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
+import DatePickerModal from '../components/DatePickerModal';
 
 const TopoPattern = () => (
   <svg className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none mix-blend-overlay" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
@@ -22,13 +23,15 @@ const TopoPattern = () => (
 );
 
 const Signup = () => {
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm();
   const { register: registerUser } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const dobValue = watch("dob");
   
   const onSubmit = async (data) => {
     setIsLoading(true);
@@ -139,21 +142,24 @@ const Signup = () => {
                   </div>
                   <div className="flex-1">
                     <label className="block text-[12px] font-bold text-slate-500 mb-0.5 ml-1">DOB</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none text-slate-400 pb-1"><Calendar size={15} /></div>
-                      <input type="date" {...register("dob", {
-                        validate: (value) => {
-                          if (!value) return true;
-                          const today = new Date();
-                          const dob = new Date(value);
-                          let age = today.getFullYear() - dob.getFullYear();
-                          if (today.getMonth() < dob.getMonth() || (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())) {
-                             age--;
-                          }
-                          return age > 10 || "Must be > 10 years";
-                        }
-                      })} className="w-full pl-7 pr-2 py-2 bg-transparent border-b border-slate-200 text-slate-500 focus:outline-none focus:border-[#FF7B7B] transition-colors rounded-none outline-none font-medium text-[13px] css-invert-calendar" />
+                    <div className="relative group cursor-pointer" onClick={() => setIsDatePickerOpen(true)}>
+                      <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none text-slate-400 pb-1 group-hover:text-[#FF7B7B] transition-colors"><Calendar size={15} /></div>
+                      <div className={`w-full pl-7 pr-2 py-2 bg-transparent border-b border-slate-200 group-hover:border-[#FF7B7B] transition-colors flex items-center ${dobValue ? 'text-slate-800' : 'text-slate-400'} font-medium text-[13px] h-[37px] rounded-none outline-none`}>
+                         {dobValue ? new Date(dobValue).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : "Set Date"}
+                      </div>
                     </div>
+                    <input type="hidden" {...register("dob", {
+                      validate: (value) => {
+                        if (!value) return true;
+                        const today = new Date();
+                        const dob = new Date(value);
+                        let age = today.getFullYear() - dob.getFullYear();
+                        if (today.getMonth() < dob.getMonth() || (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())) {
+                           age--;
+                        }
+                        return age >= 10 || "Must be >= 10 years";
+                      }
+                    })} />
                     {errors.dob && <p className="text-[#FF7B7B] text-xs mt-1 ml-1">{errors.dob.message}</p>}
                   </div>
               </div>
@@ -178,6 +184,15 @@ const Signup = () => {
         </div>
 
       </div>
+      
+      <DatePickerModal 
+        isOpen={isDatePickerOpen} 
+        onClose={() => setIsDatePickerOpen(false)} 
+        initialDate={dobValue}
+        onSelect={(dateStr) => {
+          setValue('dob', dateStr, { shouldValidate: true, shouldDirty: true });
+        }}
+      />
     </div>
   );
 };
