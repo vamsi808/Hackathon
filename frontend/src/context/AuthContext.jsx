@@ -9,8 +9,8 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         const checkLoggedIn = () => {
-            const token = localStorage.getItem('token');
-            const userData = localStorage.getItem('user');
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
             
             if (token && userData) {
                 setUser(JSON.parse(userData));
@@ -20,11 +20,14 @@ export const AuthProvider = ({ children }) => {
         checkLoggedIn();
     }, []);
 
-    const login = async (identifier, password) => {
+    const login = async (identifier, password, rememberMe = false) => {
         const response = await api.post('/auth/login', { identifier, password });
-        if (response.data.accessToken) {
-            localStorage.setItem('token', response.data.accessToken);
-            localStorage.setItem('user', JSON.stringify(response.data));
+        // Assuming the backend returns the token field (JwtResponse returns 'token', actually wait the original code used response.data.accessToken or response.data.token)
+        const token = response.data.accessToken || response.data.token;
+        if (token) {
+            const storage = rememberMe ? localStorage : sessionStorage;
+            storage.setItem('token', token);
+            storage.setItem('user', JSON.stringify(response.data));
             setUser(response.data);
             return response.data;
         }
@@ -38,6 +41,8 @@ export const AuthProvider = ({ children }) => {
     const logout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
         setUser(null);
     };
 

@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { User, Mail, Lock, Phone, Calendar, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import DatePickerModal from '../components/DatePickerModal';
+import PasswordStrengthMeter from '../components/PasswordStrengthMeter';
 
 const TopoPattern = () => (
   <svg className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none mix-blend-overlay" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
@@ -23,7 +24,7 @@ const TopoPattern = () => (
 );
 
 const Signup = () => {
-  const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm();
+  const { register, handleSubmit, formState: { errors }, watch, setValue, setError } = useForm();
   const { register: registerUser } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -37,12 +38,23 @@ const Signup = () => {
     setIsLoading(true);
     setAuthError('');
     try {
-      const res = await registerUser(data);
-      if (res.status === 200) {
+      const submitData = { ...data };
+      delete submitData.confirmPassword;
+      delete submitData.terms;
+
+      const res = await registerUser(submitData);
+      if (res && res.status === 200) {
         navigate('/login');
       }
     } catch (err) {
-      setAuthError(err.response?.data?.message || 'Registration failed.');
+      const errorMsg = err.response?.data?.message || 'Registration failed.';
+      if (errorMsg.includes('Email is already in use')) {
+        setError('email', { type: 'manual', message: 'Email is already taken' });
+      } else if (errorMsg.includes('Username is already taken')) {
+        setError('username', { type: 'manual', message: 'Username is already taken' });
+      } else {
+        setAuthError(errorMsg);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -97,8 +109,14 @@ const Signup = () => {
                     <label className="block text-[12px] font-bold text-slate-500 mb-0.5 ml-1">Username</label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none text-slate-400 pb-1 font-bold">@</div>
-                      <input type="text" placeholder="johndoe" {...register("username", { required: "Required" })} className="w-full pl-7 pr-4 py-2 bg-transparent border-b border-slate-200 text-slate-800 placeholder-slate-300 focus:outline-none focus:border-[#FF7B7B] transition-colors rounded-none outline-none font-medium text-sm" />
+                      <input type="text" placeholder="johndoe" {...register("username", { 
+                          required: "Required",
+                          minLength: { value: 3, message: "Min 3 chars" },
+                          maxLength: { value: 20, message: "Max 20 chars" },
+                          pattern: { value: /^[a-zA-Z0-9_]+$/, message: "No spaces/special chars" }
+                        })} className="w-full pl-7 pr-4 py-2 bg-transparent border-b border-slate-200 text-slate-800 placeholder-slate-300 focus:outline-none focus:border-[#FF7B7B] transition-colors rounded-none outline-none font-medium text-sm" />
                     </div>
+                    {errors.username && <p className="text-[#FF7B7B] text-[10px] mt-1 ml-1 leading-tight">{errors.username.message}</p>}
                   </div>
               </div>
 
@@ -106,30 +124,45 @@ const Signup = () => {
                 <label className="block text-[12px] font-bold text-slate-500 mb-0.5 ml-1">Email</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none text-slate-400 pb-1"><Mail size={15} /></div>
-                  <input type="email" placeholder="demo@office.com" {...register("email", { 
+                  <input type="email" placeholder="user@example.com" {...register("email", { 
                       required: "Required",
-                      pattern: { value: /^.+@office\.com$/i, message: "Must be @office.com" }
+                      pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: "Invalid email format" }
                     })} className="w-full pl-7 pr-4 py-2 bg-transparent border-b border-slate-200 text-slate-800 placeholder-slate-300 focus:outline-none focus:border-[#FF7B7B] transition-colors rounded-none outline-none font-medium text-sm" />
                 </div>
-                {errors.email && <p className="text-[#FF7B7B] text-xs mt-1 ml-1">{errors.email.message}</p>}
+                {errors.email && <p className="text-[#FF7B7B] text-[10px] mt-1 ml-1 leading-tight">{errors.email.message}</p>}
               </div>
 
-              <div>
-                <label className="block text-[12px] font-bold text-slate-500 mb-0.5 ml-1">Password</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none text-slate-400 pb-1"><Lock size={15} /></div>
-                  <input type={showPassword ? "text" : "password"} placeholder="create a password" {...register("password", { 
-                      required: "Required", 
-                      pattern: {
-                        value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-                        message: "8+ chars, 1 uppercase, 1 lowercase, 1 digit, 1 special char"
-                      }
-                    })} className="w-full pl-7 pr-8 py-2 bg-transparent border-b border-slate-200 text-slate-800 placeholder-slate-300 focus:outline-none focus:border-[#FF7B7B] transition-colors rounded-none outline-none font-medium text-sm" />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-2 flex items-center text-slate-300 hover:text-[#FF7B7B] pb-1">
-                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[12px] font-bold text-slate-500 mb-0.5 ml-1">Password</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none text-slate-400 pb-1"><Lock size={15} /></div>
+                    <input type={showPassword ? "text" : "password"} placeholder="password" {...register("password", { 
+                        required: "Required", 
+                        pattern: {
+                          value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+                          message: "8+ chars, 1Upper, 1Lower, 1Num, 1Symbol"
+                        }
+                      })} className="w-full pl-7 pr-8 py-2 bg-transparent border-b border-slate-200 text-slate-800 placeholder-slate-300 focus:outline-none focus:border-[#FF7B7B] transition-colors rounded-none outline-none font-medium text-sm" />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-2 flex items-center text-slate-300 hover:text-[#FF7B7B] pb-1">
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  <PasswordStrengthMeter password={watch('password') || ''} />
+                  {errors.password && <p className="text-[#FF7B7B] text-[10px] mt-1 ml-1 leading-tight">{errors.password.message}</p>}
                 </div>
-                {errors.password && <p className="text-[#FF7B7B] text-[10px] mt-1 ml-1 leading-tight">{errors.password.message}</p>}
+
+                <div>
+                  <label className="block text-[12px] font-bold text-slate-500 mb-0.5 ml-1">Confirm</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none text-slate-400 pb-1"><Lock size={15} /></div>
+                    <input type={showPassword ? "text" : "password"} placeholder="match password" {...register("confirmPassword", { 
+                        required: "Required", 
+                        validate: (val) => val === watch('password') || "Passwords mismatch"
+                      })} className="w-full pl-7 pr-4 py-2 bg-transparent border-b border-slate-200 text-slate-800 placeholder-slate-300 focus:outline-none focus:border-[#FF7B7B] transition-colors rounded-none outline-none font-medium text-sm" />
+                  </div>
+                  {errors.confirmPassword && <p className="text-[#FF7B7B] text-[10px] mt-1 ml-1 leading-tight">{errors.confirmPassword.message}</p>}
+                </div>
               </div>
 
               <div className="pt-1 flex gap-4">
@@ -164,7 +197,20 @@ const Signup = () => {
                   </div>
               </div>
 
-              <div className="pt-6">
+              <div className="pt-2">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <div className="relative flex items-center">
+                    <input type="checkbox" {...register("terms", { required: "Terms acceptance strictly required" })} className="peer sr-only" />
+                    <div className="w-4 h-4 border border-slate-300 rounded-md bg-white peer-checked:bg-[#FF7B7B] peer-checked:border-[#FF7B7B] transition-colors flex items-center justify-center">
+                      <svg className="w-2.5 h-2.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                  </div>
+                  <span className="text-slate-600 font-medium text-xs group-hover:text-slate-900 transition-colors">I accept the Terms & Conditions</span>
+                </label>
+                {errors.terms && <p className="text-[#FF7B7B] text-[10px] mt-1 ml-1 leading-tight">{errors.terms.message}</p>}
+              </div>
+
+              <div className="pt-3">
                 <button
                   type="submit"
                   disabled={isLoading}

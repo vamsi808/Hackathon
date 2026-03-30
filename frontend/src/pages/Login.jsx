@@ -35,7 +35,7 @@ const Login = () => {
     setIsLoading(true);
     setAuthError('');
     try {
-      const res = await login(data.identifier, data.password);
+      const res = await login(data.identifier, data.password, data.rememberMe);
       if (res) {
         navigate('/dashboard');
       } else {
@@ -67,12 +67,8 @@ const Login = () => {
              <p className="text-white/80 font-medium leading-relaxed text-left text-sm">
                 Lorem ipsum dolor sit amet consectetur. Lorem id sit
              </p>
-             <div className="flex justify-end mt-8">
-                <span className="text-white font-bold flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
-                  Continue <div className="bg-white/20 p-2 rounded-full"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7"></path></svg></div>
-                </span>
-             </div>
           </div>
+
         </div>
 
         {/* Right White Form Panel */}
@@ -86,9 +82,21 @@ const Login = () => {
             </div>
 
             {authError && (
-              <div className="mb-6 bg-red-50 text-red-500 p-3 rounded-xl flex items-center gap-2 text-sm font-medium">
-                <AlertCircle size={16} />
-                <p>{authError}</p>
+              <div className="mb-6 bg-red-50 text-red-500 p-3 rounded-xl flex items-start gap-2 text-sm font-medium">
+                <AlertCircle size={16} className="mt-0.5" />
+                <div>
+                  <span>{authError}</span>
+                  {authError === 'Email not registered' && (
+                    <span className="block mt-1 text-red-400 text-xs">
+                      Don't have an account? <Link to="/signup" className="underline font-bold text-red-500 hover:text-red-600">Sign up</Link>
+                    </span>
+                  )}
+                  {authError === 'Incorrect password' && (
+                    <span className="block mt-1 text-red-400 text-xs">
+                      Double-check your password or <a href="#" className="underline font-bold text-red-500 hover:text-red-600">reset it</a>.
+                    </span>
+                  )}
+                </div>
               </div>
             )}
 
@@ -135,17 +143,13 @@ const Login = () => {
               <div className="flex items-center justify-between text-[12px] pt-2 px-1">
                 <label className="flex items-center gap-2 cursor-pointer group">
                   <div className="relative flex items-center">
-                    <input type="checkbox" className="peer sr-only" />
+                    <input type="checkbox" {...register("rememberMe")} className="peer sr-only" />
                     <div className="w-3.5 h-3.5 border border-slate-300 rounded-sm bg-white peer-checked:bg-[#FF7B7B] peer-checked:border-[#FF7B7B] transition-colors flex items-center justify-center">
                       <svg className="w-2.5 h-2.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                     </div>
                   </div>
                   <span className="text-slate-700 font-bold group-hover:text-slate-900 transition-colors">Remember Me</span>
                 </label>
-                
-                <a href="#" className="text-[#FF7B7B] font-bold transition-colors hover:text-[#ff5555]">
-                  Forgot Password?
-                </a>
               </div>
 
               <div className="pt-8">

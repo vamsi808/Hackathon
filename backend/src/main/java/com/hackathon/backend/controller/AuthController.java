@@ -2,13 +2,14 @@ package com.hackathon.backend.controller;
 
 import com.hackathon.backend.model.Role;
 import com.hackathon.backend.model.User;
-import com.hackathon.backend.payload.request.LoginRequest;
-import com.hackathon.backend.payload.request.SignupRequest;
+import com.hackathon.backend.payload.request.*;
 import com.hackathon.backend.payload.response.JwtResponse;
 import com.hackathon.backend.payload.response.MessageResponse;
 import com.hackathon.backend.repository.UserRepository;
 import com.hackathon.backend.security.JwtUtils;
 import com.hackathon.backend.security.UserDetailsImpl;
+import java.time.LocalDateTime;
+import java.util.Optional;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.BadCredentialsException;
+import com.hackathon.backend.security.LoginAttemptService;
+import jakarta.servlet.http.HttpServletRequest;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -35,26 +40,58 @@ public class AuthController {
     @Autowired
     JwtUtils jwtUtils;
 
+    @Autowired
+    LoginAttemptService loginAttemptService;
+
+    @Autowired
+    HttpServletRequest request;
+
+    private String getClientIP() {
+        String xfHeader = request.getHeader("X-Forwarded-For");
+        if (xfHeader == null || xfHeader.isEmpty() || !xfHeader.contains(request.getRemoteAddr())) {
+            return request.getRemoteAddr();
+        }
+        return xfHeader.split(",")[0];
+    }
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+        String ip = getClientIP();
+        if (loginAttemptService.isBlocked(ip)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(new MessageResponse("Too many login attempts. Please try again later."));
+        }
 
-        // Determine if identifier is email or username
         String usernameOrEmail = loginRequest.getIdentifier();
-        
-        // Let UserDetailsServiceImpl handle resolving username or email
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(usernameOrEmail, loginRequest.getPassword()));
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtUtils.generateJwtToken(authentication);
-        
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();    
+        // Check if user exists by email or username
+        boolean exists = userRepository.existsByEmail(usernameOrEmail) || userRepository.existsByUsername(usernameOrEmail);
+        if (!exists) {
+            loginAttemptService.loginFailed(ip);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new MessageResponse("Email not registered"));
+        }
 
-        return ResponseEntity.ok(new JwtResponse(jwt, 
-                                                 userDetails.getId(), 
-                                                 userDetails.getUsername(), 
-                                                 userDetails.getEmail(), 
-                                                 userDetails.getAuthorities().stream().findFirst().get().getAuthority()));
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(usernameOrEmail, loginRequest.getPassword()));
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            String jwt = jwtUtils.generateJwtToken(authentication);
+            
+            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();    
+
+            loginAttemptService.loginSucceeded(ip);
+
+            return ResponseEntity.ok(new JwtResponse(jwt, 
+                                                     userDetails.getId(), 
+                                                     userDetails.getUsername(), 
+                                                     userDetails.getEmail(), 
+                                                     userDetails.getAuthorities().stream().findFirst().get().getAuthority()));
+        } catch (BadCredentialsException e) {
+            loginAttemptService.loginFailed(ip);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new MessageResponse("Incorrect password"));
+        }
     }
 
     @PostMapping("/register")
@@ -91,9 +128,11 @@ public class AuthController {
         user.setGender(signUpRequest.getGender());
         user.setAddress(signUpRequest.getAddress());
         user.setRole(Role.USER); // Default Role
+        user.setVerified(true); // Auto-verify
 
         userRepository.save(user);
 
         return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
     }
+
 }
